@@ -19,9 +19,10 @@ import Ehr::*;
 module mkProc( Proc );
     
     Reg#( Addr ) pc   <- mkRegU;
-    RFile        rf   <- mkRFile;
     Reg#( Data ) hi   <- mkReg( 0 );
     Reg#( Data ) lo   <- mkReg( 0 );
+    
+    RFile        rf   <- mkRFile;
     IMemory      iMem <- mkIMemory;
     DMemory      dMem <- mkDMemory;
     Cop          cop  <- mkCop;
@@ -30,51 +31,36 @@ module mkProc( Proc );
     
     rule doProc( cop.started );
         
-        Data inst = iMem.req( pc );
-        
-        // decode
-        DecodedInst dInst = decode( inst );
-        
-        // trace - print the instruction
-        $display( "pc: %h inst: (%h) expanded: ", pc, inst, showInst( inst ) );
-        
-        // read register values 
-        Data rVal1 = rf.rd1( validRegValue( dInst.src1 ) );
-        Data rVal2 = rf.rd2( validRegValue( dInst.src2 ) );
-        
-        // Co-processor read for debugging
-        Data copVal = cop.rd( validRegValue( dInst.src1 ) );
-        
-        // execute
-        ExecInst eInst = exec( dInst, rVal1, rVal2, pc, ?, copVal, hi, lo );
-        
-        // Executing illegal instruction. Exiting
+        let inst   = iMem.req( pc );
+        let dInst  = decode( inst, cop.isUserMode );
+        let rVal1  = rf.rd1( validRegValue( dInst.src1 ) );
+        let rVal2  = rf.rd2( validRegValue( dInst.src2 ) );
+        let copVal = cop.rd( validRegValue( dInst.src1 ) );
+        let eInst  = exec( dInst, rVal1, rVal2, pc, ?, copVal, hi, lo );
         if( eInst.iType == Illegal ) begin
             $fwrite( stderr, "Executing illegal instruction at pc: %x. Exiting\n", pc );
             $finish;
         end
-        
-        // memory
         if( eInst.iType == Ld ) eInst.data <- dMem.req( MemReq{ op: Ld, addr: eInst.addr, data: ? } );
         if( eInst.iType == St ) let d <- dMem.req( MemReq{ op: St, addr: eInst.addr, data: eInst.data } );
-        
-        // write back
         if( eInst.iType == Unsupported ) begin
-            $fwrite( stderr, "Executing unsupported instruction at pc: %x. Exiting\n", pc );
-            $finish;
+            cop.causeException( pc, excRI );
+            pc <= excHandlerPC;
+        end else if( eInst.iType == Syscall ) begin
+            cop.causeException( pc, excSys );
+            pc <= excHandlerPC;
+        end else if( eInst.iType == ERet ) begin
+            cop.returnFromException;
+            pc <= cop.getEPC;
         end else begin
             if( isValid( eInst.dst ) && validValue( eInst.dst ).regType == Normal ) begin
                 rf.wr( validRegValue( eInst.dst ), eInst.data );
             end
             else if( eInst.iType == Mthi ) hi <= eInst.data;
             else if( eInst.iType == Mtlo ) lo <= eInst.data;
+            cop.wr( eInst.dst, eInst.data );
+            pc <= eInst.brTaken ? eInst.addr : pc + 4;
         end
-        
-        // update the pc depending on whether the branch is taken or not
-        pc <= eInst.brTaken ? eInst.addr : pc + 4;
-        
-        // Co-processor write for debugging and stats
-        cop.wr( eInst.dst, eInst.data );
         
     endrule
     

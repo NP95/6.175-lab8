@@ -34,19 +34,19 @@ interface Cop;
 endinterface
 
 (* synthesize *)
-module mkCop(Cop):
+module mkCop( Cop );
     
-    Reg#(Bool) startReg <- mkReg(False);
+    Reg#( Bool ) startReg <- mkReg( False );
 
     // FIFO for writing to co-processor registers that send messages to the host
-    Fifo#(2, Tuple2#(RIndx, Data)) copFifo <- mkCFFifo;
+    Fifo#( 2, Tuple2#( RIndx, Data ) ) copFifo <- mkCFFifo;
 
     // Co-processor registers:
     Reg#( Data )      cycles   <- mkReg( 0 ); // 10 - Number of clock cycles elapsed
     Reg#( Data )      numInsts <- mkReg( 0 ); // 11 - Number of instructions executed
-    Reg#( Bit#( 6 ) ) Status   <- mkReg( 0 ); // 12 - Status
-    Reg#( Bit#( 5 ) ) Cause    <- mkReg( 0 ); // 13 - Cause
-    Reg#( Addr )      EPC      <- mkRegU;     // 14 - EPC
+    Reg#( Bit#( 6 ) ) eStatus  <- mkReg( 0 ); // 12 - Status
+    Reg#( Bit#( 5 ) ) eCause   <- mkReg( 0 ); // 13 - Cause
+    Reg#( Addr )      ePC      <- mkRegU;     // 14 - EPC
     // 18 - Write an integer to stderr
     //      implemented by enqueuing to copFifo
     // 19 - Write a char to stderr
@@ -95,16 +95,16 @@ module mkCop(Cop):
     
     method Action causeException( Addr current_pc, Bit#( 5 ) cause );
         
-        Status <- Status << 2;
-        Cause  <- cause;
-        EPC    <- current_pc;
+        eStatus <= eStatus << 2;
+        eCause  <= cause;
+        ePC     <= current_pc;
         
     endmethod
     
-    method Action returnFromException; Status <- Status >> 2; endmethod
+    method Action returnFromException; eStatus <= eStatus >> 2; endmethod
     
-    method Addr getEPC; return EPC; endmethod
+    method Addr getEPC; return ePC; endmethod
     
-    method Bool isUserMode; return Status[ 0 ]; endmethod
+    method Bool isUserMode; return eStatus[ 0 ] == 1; endmethod
     
 endmodule

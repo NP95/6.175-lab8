@@ -20,7 +20,7 @@ import ProcTypes::*;
 import Vector::*;
 
 (* noinline *)
-function DecodedInst decode( Data inst, Bool mode );
+function DecodedInst decode( Data inst, Bool userMode );
     
     DecodedInst dInst = ?;
     let opcode = inst[ 31 : 26 ];
@@ -48,11 +48,11 @@ function DecodedInst decode( Data inst, Bool mode );
             dInst.dst     = validReg( rt );
             dInst.src1    = validReg( rs );
             dInst.src2    = Invalid;
-            dInst.imm     = Valid(case (opcode)
+            dInst.imm     = Valid( case (opcode)
                 opADDIU, opSLTI, opSLTIU : signExtend( imm );
                 opLUI                    : { imm, 16'b0 };
                 default                  : zeroExtend( imm );
-            endcase);
+            endcase );
             dInst.brFunc  = NT;
         end
         
@@ -96,7 +96,7 @@ function DecodedInst decode( Data inst, Bool mode );
                 opBNE  : Neq;
                 opBLEZ : Le;
                 opBGTZ : Gt;
-                opRT   : rt == rtBLTZ ? Lt : Ge ;
+                opRT   : (rt == rtBLTZ ? Lt : Ge);
             endcase;
             dInst.dst    = Invalid;
             dInst.src1   = validReg(rs);
@@ -110,7 +110,7 @@ function DecodedInst decode( Data inst, Bool mode );
                 
                 rsMFC0:
                 begin
-                    dInst.iType  = mode ? Illegal : Mfc0;
+                    dInst.iType  = userMode ? Illegal : Mfc0;
                     dInst.dst    = validReg( rt );
                     dInst.src1   = validCop( rd );
                     dInst.src2   = Invalid;
@@ -120,7 +120,7 @@ function DecodedInst decode( Data inst, Bool mode );
                 
                 rsMTC0:
                 begin
-                    dInst.iType  = mode ? Illegal : Mtc0;
+                    dInst.iType  = userMode ? Illegal : Mtc0;
                     dInst.dst    = validCop( rd );
                     dInst.src1   = validReg( rt );
                     dInst.src2   = Invalid;
@@ -130,7 +130,7 @@ function DecodedInst decode( Data inst, Bool mode );
                 
                 rsERET:
                 begin
-                    dInst.iType  = mode ? Illegal : ERet;
+                    dInst.iType  = userMode ? Illegal : ERet;
                     dInst.dst    = Invalid;
                     dInst.src1   = Invalid;
                     dInst.src2   = Invalid;
