@@ -41,8 +41,8 @@ module mkProc( Proc );
             $fwrite( stderr, "Executing illegal instruction at pc: %x. Exiting\n", pc );
             $finish;
         end
-        if( eInst.iType == Ld ) eInst.data <- dMem.req( MemReq{ op: Ld, addr: eInst.addr, data: ? } );
-        if( eInst.iType == St ) let d <- dMem.req( MemReq{ op: St, addr: eInst.addr, data: eInst.data } );
+        if( eInst.iType == Ld ) eInst.data <- dMem.req( MemReq{ op: Ld, addr: eInst.addr, data: eInst.data } );
+        else if( eInst.iType == St ) let d <- dMem.req( MemReq{ op: St, addr: eInst.addr, data: eInst.data } );
         if( eInst.iType == Unsupported ) begin
             cop.causeException( pc, excRI );
             pc <= excHandlerPC;

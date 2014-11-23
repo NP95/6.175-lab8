@@ -37,49 +37,55 @@ endinterface
 module mkCop( Cop );
     
     Reg#( Bool ) startReg <- mkReg( False );
-
+    
     // FIFO for writing to co-processor registers that send messages to the host
     Fifo#( 2, Tuple2#( RIndx, Data ) ) copFifo <- mkCFFifo;
-
+    
     // Co-processor registers:
-    Reg#( Data )      cycles   <- mkReg( 0 ); // 10 - Number of clock cycles elapsed
-    Reg#( Data )      numInsts <- mkReg( 0 ); // 11 - Number of instructions executed
-    Reg#( Bit#( 6 ) ) eStatus  <- mkReg( 0 ); // 12 - Status
-    Reg#( Bit#( 5 ) ) eCause   <- mkReg( 0 ); // 13 - Cause
-    Reg#( Addr )      ePC      <- mkRegU;     // 14 - EPC
+    Reg#( Data ) cycles   <- mkReg( 0 ); // 10 - Number of clock cycles elapsed
+    Reg#( Data ) numInsts <- mkReg( 0 ); // 11 - Number of instructions executed
+    Reg#( Addr ) eStatus  <- mkReg( 0 ); // 12 - Status
+    Reg#( Addr ) eCause   <- mkReg( 0 ); // 13 - Cause
+    Reg#( Addr ) ePC      <- mkRegU;     // 14 - EPC
     // 18 - Write an integer to stderr
     //      implemented by enqueuing to copFifo
     // 19 - Write a char to stderr
     //      implemented by enqueuing to copFifo
     // 21 - Finish code
     //      implemented by enqueuing to copFifo
-
+    
     rule count (startReg);
         cycles <= cycles + 1;
         $display("\nCycle %d ----------------------------------------------------", cycles);
     endrule
-
+    
     method Action start;
         startReg <= True;
         cycles <= 0;
     endmethod
-
+    
     method Bool started;
         return startReg;
     endmethod
-
+    
     // method for reading co-processor registers
     method Data rd(RIndx idx);
         return (case(idx)
                     10: cycles;
                     11: numInsts;
+                    12: eStatus;
+                    13: eCause;
+                    14: ePC;
                 endcase);
     endmethod
-
+    
     // method for writing co-processor registers
     method Action wr(Maybe#(FullIndx) idx, Data val);
         if(isValid(idx) && validValue(idx).regType == CopReg) begin
             case (validRegValue(idx))
+                12: eStatus <= val;
+                13: eCause  <= val;
+                14: ePC     <= val;
                 18: copFifo.enq(tuple2(18, val));
                 19: copFifo.enq(tuple2(19, val));
                 21: copFifo.enq(tuple2(21, val));
@@ -87,7 +93,7 @@ module mkCop( Cop );
         end
         numInsts <= numInsts + 1;
     endmethod
-
+    
     method ActionValue#(Tuple2#(RIndx, Data)) cpuToHost;
         copFifo.deq;
         return copFifo.first;
@@ -95,13 +101,13 @@ module mkCop( Cop );
     
     method Action causeException( Addr current_pc, Bit#( 5 ) cause );
         
-        eStatus <= eStatus << 2;
-        eCause  <= cause;
-        ePC     <= current_pc;
+        eStatus[5:0] <= eStatus[5:0] << 2;
+        eCause[6:2]  <= cause;
+        ePC          <= current_pc;
         
     endmethod
     
-    method Action returnFromException; eStatus <= eStatus >> 2; endmethod
+    method Action returnFromException; eStatus[5:0] <= eStatus[5:0] >> 2; endmethod
     
     method Addr getEPC; return ePC; endmethod
     
